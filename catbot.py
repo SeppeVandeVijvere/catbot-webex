@@ -1,150 +1,181 @@
 import requests
-from rich import print
+from rich import print as rprint
+import time
 
-# API keys
-webex_key = input("Geef je Webex API Key in: ")
-webex_headers = {"Authorization": f"Bearer {webex_key}"}
-cat_headers = {"x-api-key": "live_EZYC6zWcD75xxtCBwUbGZUTUsi3JCctk4us9NzaIyZTP3qNLUMpdzlsDRchTbiIu"}
+# ————————————————————————————————
+# CONFIGURATIE
+# ————————————————————————————————
 
-# Basis urls
-webex_url = "https://webexapis.com/v1/"
-cat_url = "https://api.thecatapi.com/v1/"
-prefix = "%"
+# 1) Webex-API key (voer in bij prompt)
+api_sleutel_input = input("Voer je Webex API-sleutel in: ").strip()
+webex_api_sleutel = "Bearer " + api_sleutel_input
 
-# Hulpjes
-def check_connection():
-    try:
-        # Test Webex verbinding
-        webex_ok = requests.get(webex_url + "rooms", headers=webex_headers)
-        print(f"Webex status code: {webex_ok.status_code}")
-        
-        # Test Cat API verbinding
-        cat_ok = requests.get(cat_url + "images", headers=cat_headers)
-        print(f"Cat API status code: {cat_ok.status_code}")
-        
-        # Controleer of beide API's goed reageren
-        if webex_ok.status_code == 200 and cat_ok.status_code == 200:
-            print("[green]Connectie geslaagd[/green]")
-        else:
-            raise Exception(f"Webex of Cat API fout. Status: Webex {webex_ok.status_code}, Cat {cat_ok.status_code}")
-    except requests.exceptions.RequestException as e:
-        print(f"[red]Verbindingsfout: {str(e)}[/red]")
-        exit()
+# 2) Basis-parameters Webex
+webex_basis_url = "https://webexapis.com/v1/"
+webex_headers = {"Authorization": webex_api_sleutel}
 
-def zoek_of_maak_room(naam):
-    try:
-        # Haal bestaande rooms op
-        resp = requests.get(webex_url + "rooms", headers=webex_headers).json()
-        if "items" not in resp:
-            raise Exception("Geen rooms gevonden in Webex API response.")
-        
-        # Zoek naar een room met de opgegeven naam
-        for room in resp["items"]:
-            if room["title"] == naam:
-                print(f"[blue]Room gevonden: {naam}[/blue]")
-                return room["id"]
-        
-        # Vraag de gebruiker of hij/zij een nieuwe room wil aanmaken
-        keuze = input(f"Room niet gevonden. Maken? (y/n): ")
-        if keuze.lower() == "y":
-            r = requests.post(webex_url + "rooms", headers=webex_headers, json={"title": naam}).json()
-            if "id" not in r:
-                raise Exception("Fout bij het aanmaken van de room.")
-            print(f"[green]Room '{naam}' aangemaakt[/green]")
-            return r["id"]
-        exit()
-    except requests.exceptions.RequestException as e:
-        print(f"[red]Webex request fout: {str(e)}[/red]")
-        exit()
-    except Exception as e:
-        print(f"[red]Fout: {str(e)}[/red]")
-        exit()
+# 3) Commando-prefix
+prefix = "!"
 
-def laatste_bericht(room_id):
-    m = requests.get(webex_url + "messages", headers=webex_headers, params={"roomId": room_id, "max": 1}).json()
-    return m["items"][0] if m["items"] else None
+# 4) Cat API key (demo-sleutel)
+kat_api_sleutel = "live_EZYC6zWcD75xxtCBwUbGZUTUsi3JCctk4us9NzaIyZTP3qNLUMpdzlsDRchTbiIu"
+kat_basis_url = "https://api.thecatapi.com/v1/"
+kat_headers = {"x-api-key": kat_api_sleutel}
 
-def stuur_kat(room_id, msg_id, soort="jpg", ras=None):
-    zoek = {"mime_types": soort}
-    if ras:
-        zoek["breed_ids"] = ras
-    resultaat = requests.get(cat_url + "images/search", headers=cat_headers, params=zoek).json()[0]
-    url = resultaat["url"]
-    extra = requests.get(cat_url + f"images/{resultaat['id']}", headers=cat_headers).json()
-    tekst = "**Geen extra info.**"
-    if extra.get("breeds"):
-        b = extra["breeds"][0]
-        tekst = f"**{b['name']}** uit {b['origin']}\n{b['temperament']}"
-    body = {"roomId": room_id, "parentId": msg_id, "files": [url], "markdown": tekst}
-    requests.post(webex_url + "messages", headers=webex_headers, json=body)
+# ————————————————————————————————
+# FUNCTIES VOOR ROOM MANAGEMENT
+# ————————————————————————————————
 
-def haal_breed_id(naam):
-    lijst = requests.get(cat_url + "breeds", headers=cat_headers).json()
-    for b in lijst:
-        if naam.lower() == b["name"].lower():
-            return b["id"]
+def zoek_kamer(kamer_naam):
+    resp = requests.get(webex_basis_url + "rooms", headers=webex_headers).json()
+    for kamer in resp.get("items", []):
+        if kamer.get("title") == kamer_naam:
+            rprint(f"[green]Kamer gevonden:[/green] {kamer_naam} (ID: {kamer['id']})")
+            return kamer["id"]
     return None
 
-# Functie om kattenrassen op te halen
-def stuur_rassen(room_id, msg_id):
-    try:
-        lijst = requests.get(cat_url + "breeds", headers=cat_headers).json()
-        namen = "\n".join(f"- {b['name']}" for b in lijst)
-        body = {
-            "roomId": room_id,
-            "parentId": msg_id,
-            "markdown": f"**Rassen:**\n{namen}"
-        }
-        requests.post(webex_url + "messages", headers=webex_headers, json=body)
-    except requests.exceptions.RequestException as e:
-        print(f"[red]Fout bij het ophalen van rassen: {str(e)}[/red]")
+def maak_kamer(kamer_naam):
+    body = {"title": kamer_naam}
+    resp = requests.post(webex_basis_url + "rooms", headers=webex_headers, json=body).json()
+    kamer_id = resp.get("id")
+    rprint(f"[green]Kamer aangemaakt:[/green] {kamer_naam} (ID: {kamer_id})")
+    return kamer_id
 
-# MAIN
-def stuur_info(room_id, msg_id, ras_naam):
+def krijg_of_maak_kamer(naam):
+    kamer_id = zoek_kamer(naam)
+    if kamer_id:
+        return kamer_id
+    antwoord = input(f"Kamer '{naam}' niet gevonden. Aanmaken? (j/n): ")
+    if antwoord.lower().startswith("j"):
+        return maak_kamer(naam)
+    rprint("[red]Geen kamer gekozen — programma wordt afgesloten[/red]")
+    exit()
+
+# ————————————————————————————————
+# CAT API FUNCTIES
+# ————————————————————————————————
+
+def haal_rassenlijst_op():
+    return requests.get(kat_basis_url + "breeds", headers=kat_headers).json()
+
+def zoek_ras_id(naam):
+    for ras in haal_rassenlijst_op():
+        if ras["name"].lower() == naam.lower():
+            return ras["id"]
+    return None
+
+def haal_katafbeelding(mime="jpg", ras_id=None):
+    params = {"mime_types": mime}
+    if ras_id:
+        params["breed_ids"] = ras_id
+    afbeeldingen = requests.get(kat_basis_url + "images/search", headers=kat_headers, params=params).json()
+    return afbeeldingen[0] if afbeeldingen else None
+
+def haal_info_over_afbeelding(afbeelding_id):
+    data = requests.get(kat_basis_url + f"images/{afbeelding_id}", headers=kat_headers).json()
+    if data.get("breeds"):
+        b = data["breeds"][0]
+        tekst = f"**{b['name']}** uit {b['origin']}\nTemperament: {b['temperament']}\nLevensduur: {b['life_span']} jaar"
+        if b.get("wikipedia_url"):
+            tekst += f"\n[Meer info]({b['wikipedia_url']})"
+        return tekst
+    return "**Geen extra info**"
+
+# ————————————————————————————————
+# WEBEX BERICHTFUNCTIES
+# ————————————————————————————————
+
+def stuur_bericht(kamer_id, ouder_id, markdown=None, bestanden=None):
+    body = {"roomId": kamer_id}
+    if ouder_id:
+        body["parentId"] = ouder_id
+    if markdown:
+        body["markdown"] = markdown
+    if bestanden:
+        body["files"] = bestanden
+    requests.post(webex_basis_url + "messages", headers=webex_headers, json=body)
+
+def stuur_kat(kamer_id, bericht_id, mime, ras_id=None):
+    afbeelding = haal_katafbeelding(mime, ras_id)
+    if not afbeelding:
+        stuur_bericht(kamer_id, bericht_id, markdown="❌ Kan geen afbeelding ophalen.")
+        return
+    info = haal_info_over_afbeelding(afbeelding["id"])
+    stuur_bericht(kamer_id, bericht_id, markdown=info, bestanden=[afbeelding["url"]])
+
+def stuur_rassen(kamer_id, bericht_id):
+    lijst = "\n".join(f"- {r['name']}" for r in haal_rassenlijst_op())
+    stuur_bericht(kamer_id, bericht_id, markdown="**Beschikbare rassen:**\n" + lijst)
+
+def stuur_info(kamer_id, bericht_id, ras_naam):
+    ras_id = zoek_ras_id(ras_naam)
+    if not ras_id:
+        stuur_bericht(kamer_id, bericht_id, markdown=f"❌ Ras '{ras_naam}' niet gevonden.")
+    else:
+        afbeelding = haal_katafbeelding("jpg", ras_id)
+        info = haal_info_over_afbeelding(afbeelding["id"])
+        stuur_bericht(kamer_id, bericht_id, markdown=info, bestanden=[afbeelding["url"]])
+
+# ————————————————————————————————
+# FUNCTIE OM LAATSTE BERICHT TE HALEN
+# ————————————————————————————————
+
+def laatste_bericht(kamer_id):
+    resp = requests.get(
+        webex_basis_url + f"messages?roomId={kamer_id}&max=1",
+        headers=webex_headers
+    ).json()
+    berichten = resp.get("items", [])
+    return berichten[0] if berichten else None
+
+# ————————————————————————————————
+# CONNECTIVITEITSCHECK
+# ————————————————————————————————
+
+def controleer_verbinding():
     try:
-        lijst = requests.get(cat_url + "breeds", headers=cat_headers).json()
-        ras = next((b for b in lijst if ras_naam.lower() == b["name"].lower()), None)
-        if not ras:
-            body = {
-                "roomId": room_id,
-                "parentId": msg_id,
-                "markdown": f"❌ Ras '{ras_naam}' niet gevonden."
-            }
+        w = requests.get(webex_basis_url + "rooms", headers=webex_headers, timeout=5)
+        c = requests.get(kat_basis_url + "images", headers=kat_headers, timeout=5)
+        if w.status_code == 200 and c.status_code == 200:
+            rprint("[green]API’s bereikbaar[/green]")
         else:
-            info = f"**{ras['name']}**\nHerkomst: {ras['origin']}\nTemperament: {ras['temperament']}\nBeschrijving: {ras['description']}"
-            body = {
-                "roomId": room_id,
-                "parentId": msg_id,
-                "markdown": info
-            }
-        requests.post(webex_url + "messages", headers=webex_headers, json=body)
-    except requests.exceptions.RequestException as e:
-        print(f"[red]Fout bij het ophalen van ras-informatie: {str(e)}[/red]")
+            rprint(f"[red]API-fout: Webex {w.status_code}, Kat {c.status_code}[/red]")
+            exit()
+    except Exception as fout:
+        rprint(f"[red]Verbindingsfout: {fout}[/red]")
+        exit()
 
-check_connection()
-room_id = zoek_of_maak_room(input("Room naam: "))
-laatste_id = ""
+# ————————————————————————————————
+# HOOFDSCRIPT
+# ————————————————————————————————
 
-print("[cyan]Starten met luisteren...[/cyan]")
+controleer_verbinding()
+kamer_naam = input("Kamernaam: ")
+kamer_id = krijg_of_maak_kamer(kamer_naam)
+
+rprint(f"[cyan]Luister naar berichten in '{kamer_naam}' (prefix '{prefix}')[/cyan]")
+
+laatste_id = None
 while True:
-    m = laatste_bericht(room_id)
-    if m and m["id"] != laatste_id and m["text"].startswith(prefix):
-        parts = m["text"].split(" ", 1)
-        cmd = parts[0][1:]
-        arg = parts[1] if len(parts) > 1 else None
-        if cmd == "cat":
-            id = haal_breed_id(arg) if arg else None
-            stuur_kat(room_id, m["id"], "jpg", id)
-        elif cmd == "gif":
-            id = haal_breed_id(arg) if arg else None
-            stuur_kat(room_id, m["id"], "gif", id)
-        elif cmd == "breeds":
-            lijst = requests.get(cat_url + "breeds", headers=cat_headers).json()
-            namen = "\n".join(f"- {b['name']}" for b in lijst)
-            requests.post(webex_url + "messages", headers=webex_headers,
-                          json={"roomId": room_id, "parentId": m["id"], "markdown": f"**Rassen:**\n{namen}"})
-        elif cmd == "rassen":
-            stuur_rassen(room_id, m["id"])
-        elif cmd == "info" and arg:
-            stuur_info(room_id, m["id"], arg)
-        laatste_id = m["id"]
+    bericht = laatste_bericht(kamer_id)
+    
+    if bericht and bericht["id"] != laatste_id and bericht.get("text", "").startswith(prefix):
+        delen = bericht["text"].split(" ", 1)
+        commando = delen[0][1:].lower()
+        argument = delen[1] if len(delen) > 1 else None
+
+        if commando == "cat":
+            ras_id = zoek_ras_id(argument) if argument else None
+            stuur_kat(kamer_id, bericht["id"], "jpg", ras_id)
+        elif commando == "gif":
+            ras_id = zoek_ras_id(argument) if argument else None
+            stuur_kat(kamer_id, bericht["id"], "gif", ras_id)
+        elif commando in ("rassen", "breeds"):
+            stuur_rassen(kamer_id, bericht["id"])
+        elif commando == "info" and argument:
+            stuur_info(kamer_id, bericht["id"], argument)
+        # onbekend commando wordt genegeerd
+
+        laatste_id = bericht["id"]
+    
+    time.sleep(1)
