@@ -20,3 +20,19 @@ def check_connection():
     else:
         print("[red]Probleem met verbinding.[/red]")
         exit()
+def zoek_of_maak_room(naam):
+    resp = requests.get(webex_url + "rooms", headers=webex_headers).json()
+    for room in resp["items"]:
+        if room["title"] == naam:
+            print(f"[blue]Room gevonden: {naam}[/blue]")
+            return room["id"]
+    keuze = input(f"Room niet gevonden. Maken? (y/n): ")
+    if keuze.lower() == "y":
+        r = requests.post(webex_url + "rooms", headers=webex_headers, json={"title": naam}).json()
+        print(f"[green]Room '{naam}' aangemaakt[/green]")
+        return r["id"]
+    exit()
+
+def laatste_bericht(room_id):
+    m = requests.get(webex_url + "messages", headers=webex_headers, params={"roomId": room_id, "max": 1}).json()
+    return m["items"][0] if m["items"] else None
