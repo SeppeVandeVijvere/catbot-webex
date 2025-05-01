@@ -2,9 +2,9 @@ import requests
 from rich import print as rprint
 import time
 
-# ————————————————————————————————
-# CONFIGURATIE
-# ————————————————————————————————
+# ———————————————————————————————————————— 
+# CONFIGURATIE 
+# ———————————————————————————————————————— 
 
 # 1) Webex-API key (voer in bij prompt)
 api_sleutel_input = input("Voer je Webex API-sleutel in: ").strip()
@@ -22,9 +22,9 @@ kat_api_sleutel = "live_EZYC6zWcD75xxtCBwUbGZUTUsi3JCctk4us9NzaIyZTP3qNLUMpdzlsD
 kat_basis_url = "https://api.thecatapi.com/v1/"
 kat_headers = {"x-api-key": kat_api_sleutel}
 
-# ————————————————————————————————
-# FUNCTIES VOOR ROOM MANAGEMENT
-# ————————————————————————————————
+# ———————————————————————————————————————— 
+# FUNCTIES VOOR ROOM MANAGEMENT 
+# ———————————————————————————————————————— 
 
 def zoek_kamer(kamer_naam):
     resp = requests.get(webex_basis_url + "rooms", headers=webex_headers).json()
@@ -51,9 +51,9 @@ def krijg_of_maak_kamer(naam):
     rprint("[red]Geen kamer gekozen — programma wordt afgesloten[/red]")
     exit()
 
-# ————————————————————————————————
-# CAT API FUNCTIES
-# ————————————————————————————————
+# ———————————————————————————————————————— 
+# CAT API FUNCTIES 
+# ———————————————————————————————————————— 
 
 def haal_rassenlijst_op():
     return requests.get(kat_basis_url + "breeds", headers=kat_headers).json()
@@ -81,9 +81,9 @@ def haal_info_over_afbeelding(afbeelding_id):
         return tekst
     return "**Geen extra info**"
 
-# ————————————————————————————————
-# WEBEX BERICHTFUNCTIES
-# ————————————————————————————————
+# ———————————————————————————————————————— 
+# WEBEX BERICHTFUNCTIES 
+# ———————————————————————————————————————— 
 
 def stuur_bericht(kamer_id, ouder_id, markdown=None, bestanden=None):
     body = {"roomId": kamer_id}
@@ -116,9 +116,9 @@ def stuur_info(kamer_id, bericht_id, ras_naam):
         info = haal_info_over_afbeelding(afbeelding["id"])
         stuur_bericht(kamer_id, bericht_id, markdown=info, bestanden=[afbeelding["url"]])
 
-# ————————————————————————————————
-# FUNCTIE OM LAATSTE BERICHT TE HALEN
-# ————————————————————————————————
+# ———————————————————————————————————————— 
+# FUNCTIE OM LAATSTE BERICHT TE HALEN 
+# ———————————————————————————————————————— 
 
 def laatste_bericht(kamer_id):
     resp = requests.get(
@@ -128,9 +128,9 @@ def laatste_bericht(kamer_id):
     berichten = resp.get("items", [])
     return berichten[0] if berichten else None
 
-# ————————————————————————————————
-# CONNECTIVITEITSCHECK
-# ————————————————————————————————
+# ———————————————————————————————————————— 
+# CONNECTIVITEITSCHECK 
+# ———————————————————————————————————————— 
 
 def controleer_verbinding():
     try:
@@ -145,9 +145,9 @@ def controleer_verbinding():
         rprint(f"[red]Verbindingsfout: {fout}[/red]")
         exit()
 
-# ————————————————————————————————
-# HOOFDSCRIPT
-# ————————————————————————————————
+# ———————————————————————————————————————— 
+# HOOFDSCRIPT 
+# ———————————————————————————————————————— 
 
 controleer_verbinding()
 kamer_naam = input("Kamernaam: ")
@@ -158,7 +158,7 @@ rprint(f"[cyan]Luister naar berichten in '{kamer_naam}' (prefix '{prefix}')[/cya
 laatste_id = None
 while True:
     bericht = laatste_bericht(kamer_id)
-    
+
     if bericht and bericht["id"] != laatste_id and bericht.get("text", "").startswith(prefix):
         delen = bericht["text"].split(" ", 1)
         commando = delen[0][1:].lower()
@@ -174,8 +174,12 @@ while True:
             stuur_rassen(kamer_id, bericht["id"])
         elif commando == "info" and argument:
             stuur_info(kamer_id, bericht["id"], argument)
-        # onbekend commando wordt genegeerd
 
         laatste_id = bericht["id"]
-    
+
     time.sleep(1)
+
+# TESTCOMMANDO'S VOOR FILMPJE
+stuur_rassen("dummy_kamer_id", None)
+stuur_kat("dummy_kamer_id", None, "jpg")
+stuur_info("dummy_kamer_id", None, "Abyssinian")
