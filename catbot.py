@@ -2,7 +2,7 @@ import requests
 from rich import print
 
 # API keys
-webex_key = input("Geef je Webex API Key in aub: ")
+webex_key = input("Geef je Webex API Key in: ")
 webex_headers = {"Authorization": f"Bearer {webex_key}"}
 cat_headers = {"x-api-key": "live_EZYC6zWcD75xxtCBwUbGZUTUsi3JCctk4us9NzaIyZTP3qNLUMpdzlsDRchTbiIu"}
 
@@ -20,6 +20,7 @@ def check_connection():
     else:
         print("[red]Probleem met verbinding.[/red]")
         exit()
+
 def zoek_of_maak_room(naam):
     resp = requests.get(webex_url + "rooms", headers=webex_headers).json()
     for room in resp["items"]:
@@ -57,3 +58,28 @@ def haal_breed_id(naam):
         if naam.lower() == b["name"].lower():
             return b["id"]
     return None
+
+# MAIN
+check_connection()
+room_id = zoek_of_maak_room(input("Room naam: "))
+laatste_id = ""
+
+print("[cyan]Starten met luisteren...[/cyan]")
+while True:
+    m = laatste_bericht(room_id)
+    if m and m["id"] != laatste_id and m["text"].startswith(prefix):
+        parts = m["text"].split(" ", 1)
+        cmd = parts[0][1:]
+        arg = parts[1] if len(parts) > 1 else None
+        if cmd == "cat":
+            id = haal_breed_id(arg) if arg else None
+            stuur_kat(room_id, m["id"], "jpg", id)
+        elif cmd == "gif":
+            id = haal_breed_id(arg) if arg else None
+            stuur_kat(room_id, m["id"], "gif", id)
+        elif cmd == "breeds":
+            lijst = requests.get(cat_url + "breeds", headers=cat_headers).json()
+            namen = "\n".join(f"- {b['name']}" for b in lijst)
+            requests.post(webex_url + "messages", headers=webex_headers,
+                          json={"roomId": room_id, "parentId": m["id"], "markdown": f"**Rassen:**\n{namen}"})
+        laatste_id = m["id"]
