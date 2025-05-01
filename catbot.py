@@ -50,3 +50,10 @@ def stuur_kat(room_id, msg_id, soort="jpg", ras=None):
         tekst = f"**{b['name']}** uit {b['origin']}\n{b['temperament']}"
     body = {"roomId": room_id, "parentId": msg_id, "files": [url], "markdown": tekst}
     requests.post(webex_url + "messages", headers=webex_headers, json=body)
+
+def haal_breed_id(naam):
+    lijst = requests.get(cat_url + "breeds", headers=cat_headers).json()
+    for b in lijst:
+        if naam.lower() == b["name"].lower():
+            return b["id"]
+    return None
