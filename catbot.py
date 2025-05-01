@@ -36,3 +36,17 @@ def zoek_of_maak_room(naam):
 def laatste_bericht(room_id):
     m = requests.get(webex_url + "messages", headers=webex_headers, params={"roomId": room_id, "max": 1}).json()
     return m["items"][0] if m["items"] else None
+
+def stuur_kat(room_id, msg_id, soort="jpg", ras=None):
+    zoek = {"mime_types": soort}
+    if ras:
+        zoek["breed_ids"] = ras
+    resultaat = requests.get(cat_url + "images/search", headers=cat_headers, params=zoek).json()[0]
+    url = resultaat["url"]
+    extra = requests.get(cat_url + f"images/{resultaat['id']}", headers=cat_headers).json()
+    tekst = "**Geen extra info.**"
+    if extra.get("breeds"):
+        b = extra["breeds"][0]
+        tekst = f"**{b['name']}** uit {b['origin']}\n{b['temperament']}"
+    body = {"roomId": room_id, "parentId": msg_id, "files": [url], "markdown": tekst}
+    requests.post(webex_url + "messages", headers=webex_headers, json=body)
