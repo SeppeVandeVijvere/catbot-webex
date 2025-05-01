@@ -85,6 +85,20 @@ def haal_breed_id(naam):
             return b["id"]
     return None
 
+# Functie om kattenrassen op te halen
+def stuur_rassen(room_id, msg_id):
+    try:
+        lijst = requests.get(cat_url + "breeds", headers=cat_headers).json()
+        namen = "\n".join(f"- {b['name']}" for b in lijst)
+        body = {
+            "roomId": room_id,
+            "parentId": msg_id,
+            "markdown": f"**Rassen:**\n{namen}"
+        }
+        requests.post(webex_url + "messages", headers=webex_headers, json=body)
+    except requests.exceptions.RequestException as e:
+        print(f"[red]Fout bij het ophalen van rassen: {str(e)}[/red]")
+
 # MAIN
 check_connection()
 room_id = zoek_of_maak_room(input("Room naam: "))
@@ -108,4 +122,6 @@ while True:
             namen = "\n".join(f"- {b['name']}" for b in lijst)
             requests.post(webex_url + "messages", headers=webex_headers,
                           json={"roomId": room_id, "parentId": m["id"], "markdown": f"**Rassen:**\n{namen}"})
+        elif cmd == "rassen":
+            stuur_rassen(room_id, m["id"])  # Nieuwe commando check
         laatste_id = m["id"]
