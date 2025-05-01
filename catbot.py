@@ -13,26 +13,52 @@ prefix = "%"
 
 # Hulpjes
 def check_connection():
-    webex_ok = requests.get(webex_url + "rooms", headers=webex_headers)
-    cat_ok = requests.get(cat_url + "images", headers=cat_headers)
-    if webex_ok.status_code == 200 and cat_ok.status_code == 200:
-        print("[green]Connectie geslaagd[/green]")
-    else:
-        print("[red]Probleem met verbinding.[/red]")
+    try:
+        # Test Webex verbinding
+        webex_ok = requests.get(webex_url + "rooms", headers=webex_headers)
+        print(f"Webex status code: {webex_ok.status_code}")
+        
+        # Test Cat API verbinding
+        cat_ok = requests.get(cat_url + "images", headers=cat_headers)
+        print(f"Cat API status code: {cat_ok.status_code}")
+        
+        # Controleer of beide API's goed reageren
+        if webex_ok.status_code == 200 and cat_ok.status_code == 200:
+            print("[green]Connectie geslaagd[/green]")
+        else:
+            raise Exception(f"Webex of Cat API fout. Status: Webex {webex_ok.status_code}, Cat {cat_ok.status_code}")
+    except requests.exceptions.RequestException as e:
+        print(f"[red]Verbindingsfout: {str(e)}[/red]")
         exit()
 
 def zoek_of_maak_room(naam):
-    resp = requests.get(webex_url + "rooms", headers=webex_headers).json()
-    for room in resp["items"]:
-        if room["title"] == naam:
-            print(f"[blue]Room gevonden: {naam}[/blue]")
-            return room["id"]
-    keuze = input(f"Room niet gevonden. Maken? (y/n): ")
-    if keuze.lower() == "y":
-        r = requests.post(webex_url + "rooms", headers=webex_headers, json={"title": naam}).json()
-        print(f"[green]Room '{naam}' aangemaakt[/green]")
-        return r["id"]
-    exit()
+    try:
+        # Haal bestaande rooms op
+        resp = requests.get(webex_url + "rooms", headers=webex_headers).json()
+        if "items" not in resp:
+            raise Exception("Geen rooms gevonden in Webex API response.")
+        
+        # Zoek naar een room met de opgegeven naam
+        for room in resp["items"]:
+            if room["title"] == naam:
+                print(f"[blue]Room gevonden: {naam}[/blue]")
+                return room["id"]
+        
+        # Vraag de gebruiker of hij/zij een nieuwe room wil aanmaken
+        keuze = input(f"Room niet gevonden. Maken? (y/n): ")
+        if keuze.lower() == "y":
+            r = requests.post(webex_url + "rooms", headers=webex_headers, json={"title": naam}).json()
+            if "id" not in r:
+                raise Exception("Fout bij het aanmaken van de room.")
+            print(f"[green]Room '{naam}' aangemaakt[/green]")
+            return r["id"]
+        exit()
+    except requests.exceptions.RequestException as e:
+        print(f"[red]Webex request fout: {str(e)}[/red]")
+        exit()
+    except Exception as e:
+        print(f"[red]Fout: {str(e)}[/red]")
+        exit()
 
 def laatste_bericht(room_id):
     m = requests.get(webex_url + "messages", headers=webex_headers, params={"roomId": room_id, "max": 1}).json()
