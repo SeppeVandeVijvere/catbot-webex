@@ -100,6 +100,27 @@ def stuur_rassen(room_id, msg_id):
         print(f"[red]Fout bij het ophalen van rassen: {str(e)}[/red]")
 
 # MAIN
+def stuur_info(room_id, msg_id, ras_naam):
+    try:
+        lijst = requests.get(cat_url + "breeds", headers=cat_headers).json()
+        ras = next((b for b in lijst if ras_naam.lower() == b["name"].lower()), None)
+        if not ras:
+            body = {
+                "roomId": room_id,
+                "parentId": msg_id,
+                "markdown": f"❌ Ras '{ras_naam}' niet gevonden."
+            }
+        else:
+            info = f"**{ras['name']}**\nHerkomst: {ras['origin']}\nTemperament: {ras['temperament']}\nBeschrijving: {ras['description']}"
+            body = {
+                "roomId": room_id,
+                "parentId": msg_id,
+                "markdown": info
+            }
+        requests.post(webex_url + "messages", headers=webex_headers, json=body)
+    except requests.exceptions.RequestException as e:
+        print(f"[red]Fout bij het ophalen van ras-informatie: {str(e)}[/red]")
+
 check_connection()
 room_id = zoek_of_maak_room(input("Room naam: "))
 laatste_id = ""
@@ -123,5 +144,7 @@ while True:
             requests.post(webex_url + "messages", headers=webex_headers,
                           json={"roomId": room_id, "parentId": m["id"], "markdown": f"**Rassen:**\n{namen}"})
         elif cmd == "rassen":
-            stuur_rassen(room_id, m["id"])  # Nieuwe commando check
+            stuur_rassen(room_id, m["id"])
+        elif cmd == "info" and arg:
+            stuur_info(room_id, m["id"], arg)
         laatste_id = m["id"]
